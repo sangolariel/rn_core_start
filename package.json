@@ -7,7 +7,11 @@
     "ios": "react-native run-ios",
     "start": "react-native start",
     "test": "jest",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "clean-gradlew": "cd ./android && ./gradlew clean",
+    "reverse-adb": "adb reverse tcp:8081 tcp:8081",
+    "install-ios": "yarn install && patch-package && cd ios && pod install",
+    "install-android": "yarn install && npx jetify"
   },
   "dependencies": {
     "@react-native-community/async-storage": "^1.12.1",
