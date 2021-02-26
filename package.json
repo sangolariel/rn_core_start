@@ -23,6 +23,7 @@
     "axios": "^0.21.1",
     "immutable": "^4.0.0-rc.12",
     "lodash": "^4.17.21",
+    "prop-types": "^15.7.2",
     "react": "16.13.1",
     "react-content-loader": "^6.0.1",
     "react-i18next": "^11.8.8",
