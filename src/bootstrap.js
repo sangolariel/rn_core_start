@@ -1,9 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react'
-import { I18nManager, StatusBar, Platform } from 'react-native'
-import AsyncStorage from '@react-native-community/async-storage'
-
-/*Axios */
-import axios from 'axios'
+import { I18nManager, StatusBar } from 'react-native'
+import { useTranslation } from 'react-i18next'
 
 /* check Internet */
 import NetInfo from '@react-native-community/netinfo'
@@ -12,7 +9,12 @@ import NetInfo from '@react-native-community/netinfo'
 import { useSelector, useDispatch } from 'react-redux'
 import {
   languageSelector,
-} from './store/language/selectors'
+} from './Store/language/selectors'
+import { fetchSetting } from './store/common/actions'
+import { fetchCategories } from './store/category/actions'
+
+/* FlashMessage */
+import FlashMessage from 'react-native-flash-message'
 
 /* Theme */
 import { DarkTheme, DefaultTheme, Provider as PaperProvider, Provider as ThemeProvider } from 'react-native-paper'
@@ -20,19 +22,12 @@ import { useColorScheme } from 'react-native-appearance'
 import { PreferencesContext } from '~/router/context/PreferencesContext'
 import { colors, fonts, spacing, dimension, shadow } from '~/theme/configs'
 
-import AppSetting from './Screens/AppSetting'
-import RootModal from './Screens/RootModal'
-import Notification from './Screens/Notification'
-
 /* Router @react-navigation v5 */
-import RootNavigator from '~/Router'
+import RootNavigator from '~/router'
 
 /* Firebase */
 import * as firebase from 'firebase'
 import { firebaseConfig } from './configs/firebase'
-
-import messaging from '@react-native-firebase/messaging'
-import {sendLogSlack} from  '~/utils/helper'
 
 // Initialize Firebase JS SDK
 // https://firebase.google.com/docs/web/setup
@@ -45,12 +40,6 @@ try {
 
 
 export default (props) => {
-
-  /* Prevent auto hide loading */
-  if (Platform.OS === 'android') {
-    SplashScreen.preventAutoHideAsync()
-  }
-
   /* Localization */
   const { i18n } = useTranslation()
 
@@ -65,12 +54,10 @@ export default (props) => {
 
   /* Theme Setup */
   const colorScheme = useColorScheme()
-
   const [theme, switchTheme] = useState(
     colorScheme === 'dark' ? 'dark' : 'light'
   )
   const barStyle = theme === 'light' ? 'dark-content' : 'light-content'
-
   const [rtl] = useState(I18nManager.isRTL)
 
   const toggleTheme = () => {
@@ -79,14 +66,9 @@ export default (props) => {
 
   const toggleRTL = useCallback(() => {
     I18nManager.forceRTL(!rtl)
-    Updates.reloadAsync()
   }, [rtl])
 
-  const [stateCurrent, setState] = useState({
-    isUpdate: false,
-    loaded: false,
-    locale: Localization.locale
-  })
+  const [stateCurrent, setState] = useState({ isUpdate: false, loaded: false })
 
   const [isConnected, setConnected] = useState(true)
 
@@ -100,6 +82,26 @@ export default (props) => {
     [rtl, theme, toggleRTL]
   );
 
+  const onCodepushCheckForUpdateApp = async () => {
+    try {
+      await dispatch(commonActions.toggleLoading(true));
+      let isUpdate = await codePush.checkForUpdate();
+      console.log('CHECKING FOR UPDATE APP...');
+      if (isUpdate) {
+        console.log('has new version');
+        await dispatch(commonActions.toggleLoading(false));
+        setTimeout(async () => {
+          await dispatch(commonActions.setRequireUpdate());
+        }, 300);
+      } else {
+        console.log('APP IS UP TO DATE');
+        onCheckLoginSession();
+      }
+    } catch (err) {
+      console.log(err);
+      await dispatch(commonActions.toggleLoading(false));
+    }
+  };
 
   const setupResource = async () => {
     let stateNew = {
@@ -107,6 +109,9 @@ export default (props) => {
       loaded: false
     }
     try {
+      dispatch(fetchSetting())
+      dispatch(fetchCategories())
+
       /*Set loading success*/
       stateNew.loaded = true
       setState(stateNew)
@@ -123,26 +128,7 @@ export default (props) => {
   });
 
   useEffect(() => {
-    messaging().onNotificationOpenedApp(remoteMessage => {
-      sendLogSlack("Notification caused app to open from background state")
-      sendLogSlack("onMessage-data")
-      sendLogSlack(JSON.stringify(remoteMessage.data))
-      sendLogSlack("onMessage-remoteMessage")
-      sendLogSlack(JSON.stringify(remoteMessage))
-    })
-    messaging()
-        .getInitialNotification()
-        .then(remoteMessage => {
-          if (remoteMessage) {
-            sendLogSlack("Notification caused app to open from quit state:")
-            sendLogSlack("onMessage-data")
-            sendLogSlack(JSON.stringify(remoteMessage.data))
-            sendLogSlack("onMessage-remoteMessage")
-            sendLogSlack(JSON.stringify(remoteMessage))
-          }else{
-            sendLogSlack("ELse Notification caused app to open from quit state:")
-          }
-        })
+    onCodepushCheckForUpdateApp()
     setupResource()
   }, [])
 
@@ -161,25 +147,19 @@ export default (props) => {
   themeConfig['dimension'] = { ...dimension }
   themeConfig['shadow'] = { ...shadow }
   if (stateCurrent.loaded) {
-    if (Platform.OS === 'android') {
-      // SplashScreen.hideAsync()
-  }
   } else {
     return null
   }
+
   return (
     <ThemeProvider>
-      <StatusBar translucent
-        barStyle={Platform.OS === 'ios' ? 'dark-content' : barStyle}
-        backgroundColor="transparent" />
+      <StatusBar translucent barStyle={barStyle} backgroundColor="transparent" />
       <PreferencesContext.Provider value={preferences}>
         <PaperProvider theme={themeConfig}>
-          <AppSetting locale={stateCurrent.locale} />
           <RootNavigator />
-          <RootModal />
-          <Notification />
         </PaperProvider>
       </PreferencesContext.Provider>
+      <FlashMessage position="top" />
     </ThemeProvider>
   )
 }
